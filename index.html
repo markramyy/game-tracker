@@ -20,12 +20,12 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, deleteField } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Expose Firebase to window for React to use
         window.firebaseModules = {
             initializeApp, getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken,
-            getFirestore, doc, setDoc, onSnapshot
+            getFirestore, doc, setDoc, onSnapshot, deleteField
         };
     </script>
 
@@ -110,6 +110,15 @@
             background: #eef2ff;
         }
 
+        .btn-remove {
+            opacity: 0.4; /* Make it slightly visible by default so it's findable */
+            transition: opacity 0.2s;
+        }
+
+        .group:hover .btn-remove {
+            opacity: 1;
+        }
+
         .connection-status {
             position: fixed;
             bottom: 1rem;
@@ -144,38 +153,55 @@
 
         // --- Defaults ---
         const TEAM_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1);
+
         const DEFAULT_SCHEDULE = [
             {
                 gameType: "Dodgeball",
                 theme: "orange",
                 matches: [
-                    { t1: 1, t2: 6 },
-                    { t1: 4, t2: 9 },
-                    { t1: 2, t2: 8 },
-                    { t1: 5, t2: 6 },
-                    { t1: 3, t2: 10 }
+                    { t1: 1, t2: 2 }, { t1: 3, t2: 4 }, { t1: 5, t2: 6 }, { t1: 7, t2: 8 }, { t1: 9, t2: 10 }
+                ]
+            },
+            {
+                gameType: "Football",
+                theme: "blue",
+                matches: [
+                    { t1: 1, t2: 3 }, { t1: 2, t2: 4 }, { t1: 5, t2: 7 }, { t1: 6, t2: 8 }, { t1: 9, t2: 10 }
+                ]
+            },
+            {
+                gameType: "Handball",
+                theme: "indigo",
+                matches: [
+                    { t1: 1, t2: 4 }, { t1: 2, t2: 3 }, { t1: 5, t2: 8 }, { t1: 6, t2: 7 }, { t1: 9, t2: 10 }
+                ]
+            },
+            {
+                gameType: "Catch the tail",
+                theme: "rose",
+                matches: [
+                    { t1: 1, t2: 5 }, { t1: 2, t2: 6 }, { t1: 3, t2: 7 }, { t1: 4, t2: 8 }, { t1: 9, t2: 10 }
                 ]
             },
             {
                 gameType: "Baseball",
                 theme: "emerald",
                 matches: [
-                    { t1: 2, t2: 7 },
-                    { t1: 5, t2: 10 },
-                    { t1: 3, t2: 9 },
-                    { t1: 1, t2: 8 },
-                    { t1: 4, t2: 6 }
+                    { t1: 1, t2: 6 }, { t1: 2, t2: 5 }, { t1: 3, t2: 8 }, { t1: 4, t2: 7 }, { t1: 9, t2: 10 }
                 ]
             },
             {
-                gameType: "Tchoukball",
-                theme: "sky",
+                gameType: "Memory",
+                theme: "amber",
                 matches: [
-                    { t1: 3, t2: 8 },
-                    { t1: 1, t2: 7 },
-                    { t1: 4, t2: 10 },
-                    { t1: 2, t2: 9 },
-                    { t1: 5, t2: 7 }
+                    { t1: 1, t2: 7 }, { t1: 2, t2: 8 }, { t1: 3, t2: 5 }, { t1: 4, t2: 6 }, { t1: 9, t2: 10 }
+                ]
+            },
+            {
+                gameType: "Speed game",
+                theme: "red",
+                matches: [
+                    { t1: 1, t2: 8 }, { t1: 2, t2: 7 }, { t1: 3, t2: 6 }, { t1: 4, t2: 5 }, { t1: 9, t2: 10 }
                 ]
             }
         ];
@@ -189,7 +215,6 @@
             const dbRef = useRef(null);
             const authRef = useRef(null);
 
-            // FIX: Define the App ID in one place so it matches in Read and Write
             const currentAppId = typeof __app_id !== 'undefined' ? __app_id : 'game-tracker';
 
             useEffect(() => {
@@ -200,7 +225,7 @@
                     }
 
                     try {
-                        const { initializeApp, getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken, getFirestore, doc, setDoc, onSnapshot } = window.firebaseModules;
+                        const { initializeApp, getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken, getFirestore, doc, setDoc, onSnapshot, deleteField } = window.firebaseModules;
 
                         const firebaseConfig = {
                             apiKey: "AIzaSyAWRMLFyIlJygkotCrX_BBv-NLXrtV3n8c",
@@ -257,16 +282,14 @@
                     }
                 };
                 init();
-            }, []); // Empty dependency array ok here as we use currentAppId which is constant per render
+            }, []);
 
             const saveData = async (updates) => {
                 if (!dbRef.current || !user) return;
 
                 const { doc, setDoc } = window.firebaseModules;
-                // FIX: Use currentAppId here instead of the default fallback logic
                 const docRef = doc(dbRef.current, 'artifacts', currentAppId, 'public', 'data', 'tournament_data', 'main');
 
-                // Optimistic update logic could go here, but we rely on Firestore listener for consistency
                 await setDoc(docRef, updates, { merge: true });
             };
 
@@ -280,13 +303,12 @@
             const [showResetConfirm, setShowResetConfirm] = useState(false);
 
             // Local state for inputs to prevent jitter while typing
-            // We sync this with 'scores' from DB whenever 'scores' changes significantly or initially
             const [localScores, setLocalScores] = useState({});
 
-            // Sync DB scores to local scores, but only if we aren't actively typing (simplified by just syncing)
-            // A better approach for concurrent editing is needed for high volume, but this works for basic use
+            // Sync DB scores to local scores
+            // CRITICAL FIX: We replace localScores instead of merging to ensure deleted keys are actually removed from the UI
             useEffect(() => {
-                setLocalScores(prev => ({ ...prev, ...scores }));
+                setLocalScores(scores);
             }, [scores]);
 
             const handleScoreChangeLocal = (key, val) => {
@@ -316,13 +338,48 @@
                 saveData({ schedule: newSchedule });
             };
 
+            const removeMatch = (gameIdx, matchIdx) => {
+                if (!confirm("Are you sure you want to delete this match?")) return;
+
+                const newSchedule = JSON.parse(JSON.stringify(schedule));
+                const newScores = { ...scores };
+                const originalLength = schedule[gameIdx].matches.length;
+
+                // 1. Remove match from schedule
+                newSchedule[gameIdx].matches.splice(matchIdx, 1);
+
+                // 2. Shift scores up to fill the gap
+                // If we remove index 1, index 2's score moves to index 1.
+                for (let i = matchIdx; i < originalLength - 1; i++) {
+                    const currentKey = `${gameIdx}-${i}`;
+                    const nextKey = `${gameIdx}-${i+1}`;
+
+                    if (newScores[nextKey]) {
+                        newScores[currentKey] = newScores[nextKey];
+                    } else {
+                        // If next slot is empty, we must ensure the current slot becomes empty in DB
+                        // We use deleteField() to signal Firestore to remove the key
+                        newScores[currentKey] = window.firebaseModules.deleteField();
+                    }
+                }
+
+                // 3. Delete the last score entry (it's now a duplicate or orphan)
+                const lastKey = `${gameIdx}-${originalLength - 1}`;
+                newScores[lastKey] = window.firebaseModules.deleteField();
+
+                // CRITICAL FIX: Clear local state so the UI doesn't show "ghost" data from the deleted index
+                setLocalScores({});
+
+                saveData({ schedule: newSchedule, scores: newScores });
+            };
+
             const resetAll = () => {
                 saveData({
                     scores: {},
                     schedule: DEFAULT_SCHEDULE
                 });
+                setLocalScores({});
                 setShowResetConfirm(false);
-                // Also clear local storage just to be clean, though we rely on DB now
                 localStorage.removeItem('friendlyScores_v4');
                 localStorage.removeItem('friendlySchedule_v4');
             };
@@ -411,21 +468,48 @@
                         {/* Main Schedule */}
                         <div className="lg:col-span-2 space-y-8">
                             {schedule && schedule.map((category, gIdx) => {
+                                // Default colors
                                 let headerClass = "bg-indigo-50 text-indigo-700";
                                 let icon = "🎮";
                                 let borderColor = "#6366f1";
 
+                                // Custom Theme Logic
                                 if (category.gameType === "Dodgeball") {
                                     headerClass = "bg-orange-50 text-orange-700";
                                     icon="🏐";
                                     borderColor = "#fb923c";
                                 }
-                                if (category.gameType === "Baseball") {
+                                else if (category.gameType === "Football") {
+                                    headerClass = "bg-blue-50 text-blue-700";
+                                    icon="⚽";
+                                    borderColor = "#3b82f6";
+                                }
+                                else if (category.gameType === "Handball") {
+                                    headerClass = "bg-indigo-50 text-indigo-700";
+                                    icon="🤾";
+                                    borderColor = "#6366f1";
+                                }
+                                else if (category.gameType === "Catch the tail") {
+                                    headerClass = "bg-rose-50 text-rose-700";
+                                    icon="🏃";
+                                    borderColor = "#f43f5e";
+                                }
+                                else if (category.gameType === "Baseball") {
                                     headerClass = "bg-emerald-50 text-emerald-700";
                                     icon="⚾";
                                     borderColor = "#34d399";
                                 }
-                                if (category.gameType === "Tchoukball") {
+                                else if (category.gameType === "Memory") {
+                                    headerClass = "bg-amber-50 text-amber-700";
+                                    icon="🧠";
+                                    borderColor = "#f59e0b";
+                                }
+                                else if (category.gameType === "Speed game") {
+                                    headerClass = "bg-red-50 text-red-700";
+                                    icon="⚡";
+                                    borderColor = "#ef4444";
+                                }
+                                else if (category.gameType === "Tchoukball") {
                                     headerClass = "bg-sky-50 text-sky-700";
                                     icon="🥅";
                                     borderColor = "#38bdf8";
@@ -445,12 +529,23 @@
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {category.matches.map((match, mIdx) => {
                                                 const scoreKey = `${gIdx}-${mIdx}`;
-                                                // Display localScores for responsiveness, but fallback to DB scores
                                                 const currentScore = localScores[scoreKey] || scores[scoreKey] || { t1: '', t2: '' };
 
                                                 return (
                                                     <div key={mIdx} className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col items-center relative group">
-                                                        <div className="flex items-center justify-center space-x-2 w-full">
+
+                                                        {/* Remove Button - Top Right */}
+                                                        <button
+                                                            onClick={() => removeMatch(gIdx, mIdx)}
+                                                            className="btn-remove absolute top-2 right-2 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                                                            title="Remove Match"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                            </svg>
+                                                        </button>
+
+                                                        <div className="flex items-center justify-center space-x-2 w-full pt-2">
                                                             {/* Team 1 */}
                                                             <div className="flex flex-col items-center w-24">
                                                                 <select
