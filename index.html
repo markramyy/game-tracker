@@ -398,7 +398,7 @@
                     const key = String(id);
                     if (!key || key === 'undefined' || key === '') return null;
                     if (!teams[key]) {
-                        teams[key] = { id: id, played: 0, won: 0, lost: 0, draw: 0, points: 0, goalDiff: 0 };
+                        teams[key] = { id: id, played: 0, won: 0, lost: 0, draw: 0, points: 0 };
                     }
                     return teams[key];
                 };
@@ -443,8 +443,6 @@
 
                                 t1.played += 1;
                                 t2.played += 1;
-                                t1.goalDiff += (s1 - s2);
-                                t2.goalDiff += (s2 - s1);
 
                                 if (s1 > s2) {
                                     t1.won += 1;
@@ -484,8 +482,8 @@
                 });
 
                 return Object.values(teams).sort((a, b) => {
-                    if (b.points !== a.points) return b.points - a.points;
-                    return b.goalDiff - a.goalDiff;
+                    // Sort primarily by points
+                    return b.points - a.points;
                 });
             }, [schedule, scores]);
 
@@ -660,9 +658,8 @@
                                 <div className="space-y-3">
                                     <div className="grid grid-cols-12 gap-1 text-xs text-slate-400 font-bold text-center uppercase tracking-wide mb-2 px-3">
                                         <div className="col-span-2">Rank</div>
-                                        <div className="col-span-4 text-left pl-2">Team</div>
+                                        <div className="col-span-6 text-left pl-2">Team</div>
                                         <div className="col-span-2" title="Played">P</div>
-                                        <div className="col-span-2" title="Goal Diff">GD</div>
                                         <div className="col-span-2" title="Points">Pts</div>
                                     </div>
 
@@ -689,9 +686,8 @@
                                             return (
                                                 <div key={team.id} className={`grid grid-cols-12 gap-1 items-center p-3 rounded-lg border ${rankStyle} transition-colors`}>
                                                     <div className="col-span-2 font-bold flex justify-center">{rankBadge}</div>
-                                                    <div className="col-span-4 font-bold text-left pl-2 truncate">Team {team.id}</div>
+                                                    <div className="col-span-6 font-bold text-left pl-2 truncate">Team {team.id}</div>
                                                     <div className="col-span-2 text-sm opacity-75 text-center">{team.played}</div>
-                                                    <div className="col-span-2 text-sm opacity-75 text-center">{team.goalDiff > 0 ? `+${team.goalDiff}` : team.goalDiff}</div>
                                                     <div className="col-span-2 font-black text-lg text-center">{team.points}</div>
                                                 </div>
                                             );
