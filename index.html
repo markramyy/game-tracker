@@ -189,6 +189,9 @@
             const dbRef = useRef(null);
             const authRef = useRef(null);
 
+            // FIX: Define the App ID in one place so it matches in Read and Write
+            const currentAppId = typeof __app_id !== 'undefined' ? __app_id : 'game-tracker';
+
             useEffect(() => {
                 const init = async () => {
                     if (!window.firebaseModules) {
@@ -211,7 +214,6 @@
                         const app = initializeApp(firebaseConfig);
                         const auth = getAuth(app);
                         const db = getFirestore(app);
-                        const appId = typeof __app_id !== 'undefined' ? __app_id : 'game-tracker';
 
                         authRef.current = auth;
                         dbRef.current = db;
@@ -223,7 +225,7 @@
                             setUser(currentUser);
                             if (currentUser) {
                                 // Firestore Listener
-                                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'tournament_data', 'main');
+                                const docRef = doc(db, 'artifacts', currentAppId, 'public', 'data', 'tournament_data', 'main');
 
                                 onSnapshot(docRef, (snap) => {
                                     setStatus('connected');
@@ -255,14 +257,14 @@
                     }
                 };
                 init();
-            }, []);
+            }, []); // Empty dependency array ok here as we use currentAppId which is constant per render
 
             const saveData = async (updates) => {
                 if (!dbRef.current || !user) return;
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
                 const { doc, setDoc } = window.firebaseModules;
-                // FIX: Added 'main' as document ID to ensure even number of path segments (6)
-                const docRef = doc(dbRef.current, 'artifacts', appId, 'public', 'data', 'tournament_data', 'main');
+                // FIX: Use currentAppId here instead of the default fallback logic
+                const docRef = doc(dbRef.current, 'artifacts', currentAppId, 'public', 'data', 'tournament_data', 'main');
 
                 // Optimistic update logic could go here, but we rely on Firestore listener for consistency
                 await setDoc(docRef, updates, { merge: true });
