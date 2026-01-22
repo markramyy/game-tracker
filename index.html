@@ -57,7 +57,19 @@
             font-weight: 800;
         }
 
-        .input-score:focus {
+        /* Specific style for time inputs */
+        .input-time {
+            background: #f1f5f9;
+            border: 2px solid #e2e8f0;
+            color: #334155;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.8rem;
+            padding: 2px;
+            transition: all 0.2s;
+        }
+
+        .input-score:focus, .input-time:focus {
             outline: none;
             border-color: #6366f1;
             background: white;
@@ -111,7 +123,7 @@
         }
 
         .btn-remove {
-            opacity: 0.4; /* Make it slightly visible by default so it's findable */
+            opacity: 0.4;
             transition: opacity 0.2s;
         }
 
@@ -154,6 +166,9 @@
         // --- Defaults ---
         const TEAM_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1);
 
+        // Games where lowest score (time) wins and are played individually
+        const TIMED_GAMES = ["Memory", "Speed game"];
+
         const DEFAULT_SCHEDULE = [
             {
                 gameType: "Dodgeball",
@@ -163,17 +178,10 @@
                 ]
             },
             {
-                gameType: "Football",
+                gameType: "Football/Handball",
                 theme: "blue",
                 matches: [
                     { t1: 1, t2: 3 }, { t1: 2, t2: 4 }, { t1: 5, t2: 7 }, { t1: 6, t2: 8 }, { t1: 9, t2: 10 }
-                ]
-            },
-            {
-                gameType: "Handball",
-                theme: "indigo",
-                matches: [
-                    { t1: 1, t2: 4 }, { t1: 2, t2: 3 }, { t1: 5, t2: 8 }, { t1: 6, t2: 7 }, { t1: 9, t2: 10 }
                 ]
             },
             {
@@ -190,25 +198,28 @@
                     { t1: 1, t2: 6 }, { t1: 2, t2: 5 }, { t1: 3, t2: 8 }, { t1: 4, t2: 7 }, { t1: 9, t2: 10 }
                 ]
             },
+            // Individual Games - 10 slots for 10 teams
             {
                 gameType: "Memory",
                 theme: "amber",
                 matches: [
-                    { t1: 1, t2: 7 }, { t1: 2, t2: 8 }, { t1: 3, t2: 5 }, { t1: 4, t2: 6 }, { t1: 9, t2: 10 }
+                    { t1: 1 }, { t1: 2 }, { t1: 3 }, { t1: 4 }, { t1: 5 },
+                    { t1: 6 }, { t1: 7 }, { t1: 8 }, { t1: 9 }, { t1: 10 }
                 ]
             },
             {
                 gameType: "Speed game",
                 theme: "red",
                 matches: [
-                    { t1: 1, t2: 8 }, { t1: 2, t2: 7 }, { t1: 3, t2: 6 }, { t1: 4, t2: 5 }, { t1: 9, t2: 10 }
+                    { t1: 1 }, { t1: 2 }, { t1: 3 }, { t1: 4 }, { t1: 5 },
+                    { t1: 6 }, { t1: 7 }, { t1: 8 }, { t1: 9 }, { t1: 10 }
                 ]
             }
         ];
 
         // --- Firebase Integration ---
         const useFirebase = () => {
-            const [status, setStatus] = useState('connecting'); // connecting, connected, offline
+            const [status, setStatus] = useState('connecting');
             const [data, setData] = useState({ schedule: DEFAULT_SCHEDULE, scores: {} });
             const [user, setUser] = useState(null);
 
@@ -243,13 +254,11 @@
                         authRef.current = auth;
                         dbRef.current = db;
 
-                        // Auth
                         await signInAnonymously(auth);
 
                         onAuthStateChanged(auth, (currentUser) => {
                             setUser(currentUser);
                             if (currentUser) {
-                                // Firestore Listener
                                 const docRef = doc(db, 'artifacts', currentAppId, 'public', 'data', 'tournament_data', 'main');
 
                                 onSnapshot(docRef, (snap) => {
@@ -257,7 +266,6 @@
                                     if (snap.exists()) {
                                         setData(snap.data());
                                     } else {
-                                        // Migration: Upload existing local data if this is the first run
                                         const localSchedule = localStorage.getItem('friendlySchedule_v4');
                                         const localScores = localStorage.getItem('friendlyScores_v4');
 
@@ -286,14 +294,20 @@
 
             const saveData = async (updates) => {
                 if (!dbRef.current || !user) return;
-
                 const { doc, setDoc } = window.firebaseModules;
                 const docRef = doc(dbRef.current, 'artifacts', currentAppId, 'public', 'data', 'tournament_data', 'main');
-
                 await setDoc(docRef, updates, { merge: true });
             };
 
             return { status, data, saveData, user };
+        };
+
+        // --- Helper for Time Display ---
+        const secondsToTime = (totalSeconds) => {
+            if (totalSeconds === '' || totalSeconds === undefined || totalSeconds === null) return { mm: '', ss: '' };
+            const m = Math.floor(totalSeconds / 60);
+            const s = totalSeconds % 60;
+            return { mm: m.toString(), ss: s.toString().padStart(2, '0') };
         };
 
         const App = () => {
@@ -301,12 +315,8 @@
             const { schedule, scores } = data;
 
             const [showResetConfirm, setShowResetConfirm] = useState(false);
-
-            // Local state for inputs to prevent jitter while typing
             const [localScores, setLocalScores] = useState({});
 
-            // Sync DB scores to local scores
-            // CRITICAL FIX: We replace localScores instead of merging to ensure deleted keys are actually removed from the UI
             useEffect(() => {
                 setLocalScores(scores);
             }, [scores]);
@@ -325,8 +335,24 @@
                 saveData({ scores: updatedScores });
             };
 
+            const handleTimeCommit = (gameIdx, matchIdx, team, mm, ss) => {
+                const key = `${gameIdx}-${matchIdx}`;
+                const m = parseInt(mm) || 0;
+                const s = parseInt(ss) || 0;
+                const totalSeconds = (m * 60) + s;
+
+                const finalVal = (mm === '' && ss === '') ? '' : totalSeconds;
+
+                const currentMatchScore = scores[key] || { t1: '', t2: '' };
+                const updatedScores = {
+                    ...scores,
+                    [key]: { ...currentMatchScore, [team]: finalVal }
+                };
+                saveData({ scores: updatedScores });
+            };
+
             const handleTeamChange = (gameIdx, matchIdx, field, value) => {
-                const newSchedule = JSON.parse(JSON.stringify(schedule)); // Deep copy
+                const newSchedule = JSON.parse(JSON.stringify(schedule));
                 const parsed = value === "" ? "" : parseInt(value);
                 newSchedule[gameIdx].matches[matchIdx][field] = parsed;
                 saveData({ schedule: newSchedule });
@@ -339,49 +365,30 @@
             };
 
             const removeMatch = (gameIdx, matchIdx) => {
-                if (!confirm("Are you sure you want to delete this match?")) return;
-
+                if (!confirm("Delete this match?")) return;
                 const newSchedule = JSON.parse(JSON.stringify(schedule));
                 const newScores = { ...scores };
                 const originalLength = schedule[gameIdx].matches.length;
 
-                // 1. Remove match from schedule
                 newSchedule[gameIdx].matches.splice(matchIdx, 1);
 
-                // 2. Shift scores up to fill the gap
-                // If we remove index 1, index 2's score moves to index 1.
                 for (let i = matchIdx; i < originalLength - 1; i++) {
                     const currentKey = `${gameIdx}-${i}`;
                     const nextKey = `${gameIdx}-${i+1}`;
-
-                    if (newScores[nextKey]) {
-                        newScores[currentKey] = newScores[nextKey];
-                    } else {
-                        // If next slot is empty, we must ensure the current slot becomes empty in DB
-                        // We use deleteField() to signal Firestore to remove the key
-                        newScores[currentKey] = window.firebaseModules.deleteField();
-                    }
+                    if (newScores[nextKey]) newScores[currentKey] = newScores[nextKey];
+                    else newScores[currentKey] = window.firebaseModules.deleteField();
                 }
-
-                // 3. Delete the last score entry (it's now a duplicate or orphan)
                 const lastKey = `${gameIdx}-${originalLength - 1}`;
                 newScores[lastKey] = window.firebaseModules.deleteField();
 
-                // CRITICAL FIX: Clear local state so the UI doesn't show "ghost" data from the deleted index
                 setLocalScores({});
-
                 saveData({ schedule: newSchedule, scores: newScores });
             };
 
             const resetAll = () => {
-                saveData({
-                    scores: {},
-                    schedule: DEFAULT_SCHEDULE
-                });
+                saveData({ scores: {}, schedule: DEFAULT_SCHEDULE });
                 setLocalScores({});
                 setShowResetConfirm(false);
-                localStorage.removeItem('friendlyScores_v4');
-                localStorage.removeItem('friendlySchedule_v4');
             };
 
             // Calculate Standings
@@ -398,18 +405,39 @@
 
                 if (!schedule || !Array.isArray(schedule)) return [];
 
+                // Helper to collect ranked results
+                const rankedGameResults = {};
+
                 schedule.forEach((category, gIdx) => {
                     if(!category.matches) return;
+
+                    const isTimedGame = TIMED_GAMES.includes(category.gameType);
+
+                    if (isTimedGame) {
+                        rankedGameResults[category.gameType] = [];
+                    }
+
                     category.matches.forEach((match, mIdx) => {
-                        const t1 = getTeam(match.t1);
-                        const t2 = getTeam(match.t2);
+                        const scoreKey = `${gIdx}-${mIdx}`;
+                        const scoreData = scores[scoreKey];
 
-                        if (t1 && t2) {
-                            const key = `${gIdx}-${mIdx}`;
-                            // Use scores from DB for calculation
-                            const scoreData = scores[key];
+                        if (isTimedGame) {
+                             // --- SOLO / TIMED GAME LOGIC ---
+                             // Collect results first, rank later
+                             const t1 = getTeam(match.t1);
+                             if (t1 && scoreData && scoreData.t1 !== '') {
+                                 t1.played += 1;
+                                 rankedGameResults[category.gameType].push({
+                                     teamId: match.t1,
+                                     time: parseInt(scoreData.t1) || 0
+                                 });
+                             }
+                        } else {
+                            // --- NORMAL VS GAME LOGIC ---
+                            const t1 = getTeam(match.t1);
+                            const t2 = getTeam(match.t2);
 
-                            if (scoreData && scoreData.t1 !== '' && scoreData.t2 !== '') {
+                            if (t1 && t2 && scoreData && scoreData.t1 !== '' && scoreData.t2 !== '') {
                                 const s1 = parseInt(scoreData.t1) || 0;
                                 const s2 = parseInt(scoreData.t2) || 0;
 
@@ -433,6 +461,24 @@
                                     t2.points += 1;
                                 }
                             }
+                        }
+                    });
+                });
+
+                // Apply Ranking Points for Timed Games
+                Object.values(rankedGameResults).forEach(gameResults => {
+                    // Sort by lowest time
+                    gameResults.sort((a, b) => a.time - b.time);
+
+                    // Assign points based on rank
+                    gameResults.forEach((res, index) => {
+                        const team = getTeam(res.teamId);
+                        if (team) {
+                            if (index === 0) team.points += 5;      // 1st
+                            else if (index === 1) team.points += 4; // 2nd
+                            else if (index === 2) team.points += 3; // 3rd
+                            else if (index === 3) team.points += 2; // 4th
+                            else if (index === 4) team.points += 1; // 5th
                         }
                     });
                 });
@@ -468,52 +514,19 @@
                         {/* Main Schedule */}
                         <div className="lg:col-span-2 space-y-8">
                             {schedule && schedule.map((category, gIdx) => {
-                                // Default colors
+                                const isTimed = TIMED_GAMES.includes(category.gameType);
+
+                                // Colors
                                 let headerClass = "bg-indigo-50 text-indigo-700";
                                 let icon = "🎮";
                                 let borderColor = "#6366f1";
 
-                                // Custom Theme Logic
-                                if (category.gameType === "Dodgeball") {
-                                    headerClass = "bg-orange-50 text-orange-700";
-                                    icon="🏐";
-                                    borderColor = "#fb923c";
-                                }
-                                else if (category.gameType === "Football") {
-                                    headerClass = "bg-blue-50 text-blue-700";
-                                    icon="⚽";
-                                    borderColor = "#3b82f6";
-                                }
-                                else if (category.gameType === "Handball") {
-                                    headerClass = "bg-indigo-50 text-indigo-700";
-                                    icon="🤾";
-                                    borderColor = "#6366f1";
-                                }
-                                else if (category.gameType === "Catch the tail") {
-                                    headerClass = "bg-rose-50 text-rose-700";
-                                    icon="🏃";
-                                    borderColor = "#f43f5e";
-                                }
-                                else if (category.gameType === "Baseball") {
-                                    headerClass = "bg-emerald-50 text-emerald-700";
-                                    icon="⚾";
-                                    borderColor = "#34d399";
-                                }
-                                else if (category.gameType === "Memory") {
-                                    headerClass = "bg-amber-50 text-amber-700";
-                                    icon="🧠";
-                                    borderColor = "#f59e0b";
-                                }
-                                else if (category.gameType === "Speed game") {
-                                    headerClass = "bg-red-50 text-red-700";
-                                    icon="⚡";
-                                    borderColor = "#ef4444";
-                                }
-                                else if (category.gameType === "Tchoukball") {
-                                    headerClass = "bg-sky-50 text-sky-700";
-                                    icon="🥅";
-                                    borderColor = "#38bdf8";
-                                }
+                                if (category.gameType === "Dodgeball") { headerClass = "bg-orange-50 text-orange-700"; icon="🏐"; borderColor = "#fb923c"; }
+                                else if (category.gameType === "Football/Handball") { headerClass = "bg-blue-50 text-blue-700"; icon="⚽"; borderColor = "#3b82f6"; }
+                                else if (category.gameType === "Catch the tail") { headerClass = "bg-rose-50 text-rose-700"; icon="🏃"; borderColor = "#f43f5e"; }
+                                else if (category.gameType === "Baseball") { headerClass = "bg-emerald-50 text-emerald-700"; icon="⚾"; borderColor = "#34d399"; }
+                                else if (category.gameType === "Memory") { headerClass = "bg-amber-50 text-amber-700"; icon="🧠"; borderColor = "#f59e0b"; }
+                                else if (category.gameType === "Speed game") { headerClass = "bg-red-50 text-red-700"; icon="⚡"; borderColor = "#ef4444"; }
 
                                 return (
                                     <div key={gIdx} className="card p-6 border-t-4" style={{borderColor: borderColor}}>
@@ -524,83 +537,112 @@
                                                 </div>
                                                 <h3 className="text-2xl font-bold text-slate-800">{category.gameType}</h3>
                                             </div>
+                                            {isTimed && <span className="text-xs font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded">Time Trial</span>}
                                         </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className={`grid ${isTimed ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4' : 'grid-cols-1 md:grid-cols-2'} gap-4`}>
                                             {category.matches.map((match, mIdx) => {
                                                 const scoreKey = `${gIdx}-${mIdx}`;
-                                                const currentScore = localScores[scoreKey] || scores[scoreKey] || { t1: '', t2: '' };
+
+                                                const valObj = localScores[scoreKey] || scores[scoreKey] || { t1: '', t2: '' };
+                                                const t1Time = isTimed ? secondsToTime(valObj.t1) : null;
 
                                                 return (
                                                     <div key={mIdx} className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col items-center relative group">
 
-                                                        {/* Remove Button - Top Right */}
-                                                        <button
-                                                            onClick={() => removeMatch(gIdx, mIdx)}
-                                                            className="btn-remove absolute top-2 right-2 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
-                                                            title="Remove Match"
-                                                        >
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                            </svg>
-                                                        </button>
+                                                        {/* Remove Button for standard games ONLY */}
+                                                        {!isTimed && (
+                                                            <button
+                                                                onClick={() => removeMatch(gIdx, mIdx)}
+                                                                className="btn-remove absolute top-1 right-1 p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                                                                title="Remove Entry"
+                                                            >
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                </svg>
+                                                            </button>
+                                                        )}
 
-                                                        <div className="flex items-center justify-center space-x-2 w-full pt-2">
-                                                            {/* Team 1 */}
-                                                            <div className="flex flex-col items-center w-24">
-                                                                <select
-                                                                    className="select-team w-full mb-2"
-                                                                    value={match.t1}
-                                                                    onChange={(e) => handleTeamChange(gIdx, mIdx, 't1', e.target.value)}
-                                                                >
-                                                                    <option value="">--</option>
-                                                                    {TEAM_OPTIONS.map(n => (
-                                                                        <option key={n} value={n}>Team {n}</option>
-                                                                    ))}
-                                                                </select>
-                                                                <input
-                                                                    type="number"
-                                                                    className="input-score w-16 h-12 text-2xl rounded-lg"
-                                                                    value={currentScore.t1}
-                                                                    onChange={(e) => handleScoreChangeLocal(scoreKey, { ...currentScore, t1: e.target.value })}
-                                                                    onBlur={(e) => commitScore(gIdx, mIdx, 't1', e.target.value)}
-                                                                />
+                                                        {isTimed ? (
+                                                            // --- SOLO ENTRY CARD (FIXED GRID, NO SELECTION) ---
+                                                            <div className="flex flex-col items-center w-full">
+                                                                <div className="text-slate-500 font-bold text-sm mb-2">
+                                                                    TEAM {match.t1}
+                                                                </div>
+
+                                                                <div className="flex items-center space-x-1">
+                                                                    <input
+                                                                        type="number" placeholder="M"
+                                                                        className="input-time w-9 h-9 rounded-lg"
+                                                                        defaultValue={t1Time ? t1Time.mm : ''}
+                                                                        onBlur={(e) => handleTimeCommit(gIdx, mIdx, 't1', e.target.value, (e.target.nextSibling.value || 0))}
+                                                                    />
+                                                                    <span className="text-slate-400 font-bold">:</span>
+                                                                    <input
+                                                                        type="number" placeholder="S"
+                                                                        className="input-time w-9 h-9 rounded-lg"
+                                                                        defaultValue={t1Time ? t1Time.ss : ''}
+                                                                        onBlur={(e) => handleTimeCommit(gIdx, mIdx, 't1', (e.target.previousSibling.previousSibling.value || 0), e.target.value)}
+                                                                    />
+                                                                </div>
                                                             </div>
+                                                        ) : (
+                                                            // --- VS MATCH CARD ---
+                                                            <div className="flex items-center justify-center space-x-2 w-full pt-2">
+                                                                {/* Team 1 */}
+                                                                <div className="flex flex-col items-center w-28">
+                                                                    <select
+                                                                        className="select-team w-full mb-2"
+                                                                        value={match.t1}
+                                                                        onChange={(e) => handleTeamChange(gIdx, mIdx, 't1', e.target.value)}
+                                                                    >
+                                                                        <option value="">--</option>
+                                                                        {TEAM_OPTIONS.map(n => <option key={n} value={n}>Team {n}</option>)}
+                                                                    </select>
+                                                                    <input
+                                                                        type="number"
+                                                                        className="input-score w-16 h-12 text-2xl rounded-lg"
+                                                                        value={valObj.t1}
+                                                                        onChange={(e) => handleScoreChangeLocal(scoreKey, { ...valObj, t1: e.target.value })}
+                                                                        onBlur={(e) => commitScore(gIdx, mIdx, 't1', e.target.value)}
+                                                                    />
+                                                                </div>
 
-                                                            <span className="text-slate-300 font-bold text-lg pt-6">vs</span>
+                                                                <span className="text-slate-300 font-bold text-lg pt-6">vs</span>
 
-                                                            {/* Team 2 */}
-                                                            <div className="flex flex-col items-center w-24">
-                                                                <select
-                                                                    className="select-team w-full mb-2"
-                                                                    value={match.t2}
-                                                                    onChange={(e) => handleTeamChange(gIdx, mIdx, 't2', e.target.value)}
-                                                                >
-                                                                    <option value="">--</option>
-                                                                    {TEAM_OPTIONS.map(n => (
-                                                                        <option key={n} value={n}>Team {n}</option>
-                                                                    ))}
-                                                                </select>
-                                                                <input
-                                                                    type="number"
-                                                                    className="input-score w-16 h-12 text-2xl rounded-lg"
-                                                                    value={currentScore.t2}
-                                                                    onChange={(e) => handleScoreChangeLocal(scoreKey, { ...currentScore, t2: e.target.value })}
-                                                                    onBlur={(e) => commitScore(gIdx, mIdx, 't2', e.target.value)}
-                                                                />
+                                                                {/* Team 2 */}
+                                                                <div className="flex flex-col items-center w-28">
+                                                                    <select
+                                                                        className="select-team w-full mb-2"
+                                                                        value={match.t2}
+                                                                        onChange={(e) => handleTeamChange(gIdx, mIdx, 't2', e.target.value)}
+                                                                    >
+                                                                        <option value="">--</option>
+                                                                        {TEAM_OPTIONS.map(n => <option key={n} value={n}>Team {n}</option>)}
+                                                                    </select>
+                                                                    <input
+                                                                        type="number"
+                                                                        className="input-score w-16 h-12 text-2xl rounded-lg"
+                                                                        value={valObj.t2}
+                                                                        onChange={(e) => handleScoreChangeLocal(scoreKey, { ...valObj, t2: e.target.value })}
+                                                                        onBlur={(e) => commitScore(gIdx, mIdx, 't2', e.target.value)}
+                                                                    />
+                                                                </div>
                                                             </div>
-                                                        </div>
+                                                        )}
                                                     </div>
                                                 );
                                             })}
 
-                                            <button
-                                                onClick={() => addMatch(gIdx)}
-                                                className="btn-add rounded-xl flex flex-col items-center justify-center min-h-[120px] p-4"
-                                            >
-                                                <span className="text-2xl font-bold mb-1">+</span>
-                                                <span className="text-xs font-bold uppercase tracking-wider">Add Match</span>
-                                            </button>
+                                            {!isTimed && (
+                                                <button
+                                                    onClick={() => addMatch(gIdx)}
+                                                    className="btn-add rounded-xl flex flex-col items-center justify-center min-h-[120px] p-4"
+                                                >
+                                                    <span className="text-2xl font-bold mb-1">+</span>
+                                                    <span className="text-xs font-bold uppercase tracking-wider">Add</span>
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 );
