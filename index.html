@@ -57,19 +57,7 @@
             font-weight: 800;
         }
 
-        /* Specific style for time inputs */
-        .input-time {
-            background: #f1f5f9;
-            border: 2px solid #e2e8f0;
-            color: #334155;
-            text-align: center;
-            font-weight: 600;
-            font-size: 0.8rem;
-            padding: 2px;
-            transition: all 0.2s;
-        }
-
-        .input-score:focus, .input-time:focus {
+        .input-score:focus {
             outline: none;
             border-color: #6366f1;
             background: white;
@@ -164,55 +152,49 @@
         const { useState, useEffect, useMemo, useRef } = React;
 
         // --- Defaults ---
-        const TEAM_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1);
-
-        // Games where lowest score (time) wins and are played individually
-        const TIMED_GAMES = ["Memory", "Speed game"];
+        const TEAM_OPTIONS = Array.from({ length: 12 }, (_, i) => i + 1);
 
         const DEFAULT_SCHEDULE = [
             {
                 gameType: "Dodgeball",
                 theme: "orange",
                 matches: [
-                    { t1: 1, t2: 2 }, { t1: 3, t2: 4 }, { t1: 5, t2: 6 }, { t1: 7, t2: 8 }, { t1: 9, t2: 10 }
+                    { t1: 1, t2: 2 }, { t1: 3, t2: 4 }, { t1: 5, t2: 6 }, { t1: 7, t2: 8 }, { t1: 9, t2: 10 }, { t1: 11, t2: 12 }
                 ]
             },
             {
                 gameType: "Football/Handball",
                 theme: "blue",
                 matches: [
-                    { t1: 1, t2: 3 }, { t1: 2, t2: 4 }, { t1: 5, t2: 7 }, { t1: 6, t2: 8 }, { t1: 9, t2: 10 }
+                    { t1: 1, t2: 3 }, { t1: 2, t2: 4 }, { t1: 5, t2: 7 }, { t1: 6, t2: 8 }, { t1: 9, t2: 11 }, { t1: 10, t2: 12 }
                 ]
             },
             {
                 gameType: "Catch the tail",
                 theme: "rose",
                 matches: [
-                    { t1: 1, t2: 5 }, { t1: 2, t2: 6 }, { t1: 3, t2: 7 }, { t1: 4, t2: 8 }, { t1: 9, t2: 10 }
+                    { t1: 1, t2: 5 }, { t1: 2, t2: 6 }, { t1: 3, t2: 7 }, { t1: 4, t2: 8 }, { t1: 9, t2: 12 }, { t1: 10, t2: 11 }
                 ]
             },
             {
                 gameType: "Baseball",
                 theme: "emerald",
                 matches: [
-                    { t1: 1, t2: 6 }, { t1: 2, t2: 5 }, { t1: 3, t2: 8 }, { t1: 4, t2: 7 }, { t1: 9, t2: 10 }
+                    { t1: 1, t2: 6 }, { t1: 2, t2: 5 }, { t1: 3, t2: 8 }, { t1: 4, t2: 7 }, { t1: 9, t2: 10 }, { t1: 11, t2: 12 }
                 ]
             },
-            // Individual Games - 10 slots for 10 teams
             {
                 gameType: "Memory",
                 theme: "amber",
                 matches: [
-                    { t1: 1 }, { t1: 2 }, { t1: 3 }, { t1: 4 }, { t1: 5 },
-                    { t1: 6 }, { t1: 7 }, { t1: 8 }, { t1: 9 }, { t1: 10 }
+                    { t1: 1, t2: 7 }, { t1: 2, t2: 8 }, { t1: 3, t2: 5 }, { t1: 4, t2: 6 }, { t1: 9, t2: 11 }, { t1: 10, t2: 12 }
                 ]
             },
             {
                 gameType: "Speed game",
                 theme: "red",
                 matches: [
-                    { t1: 1 }, { t1: 2 }, { t1: 3 }, { t1: 4 }, { t1: 5 },
-                    { t1: 6 }, { t1: 7 }, { t1: 8 }, { t1: 9 }, { t1: 10 }
+                    { t1: 1, t2: 8 }, { t1: 2, t2: 7 }, { t1: 3, t2: 6 }, { t1: 4, t2: 5 }, { t1: 9, t2: 12 }, { t1: 10, t2: 11 }
                 ]
             }
         ];
@@ -302,14 +284,6 @@
             return { status, data, saveData, user };
         };
 
-        // --- Helper for Time Display ---
-        const secondsToTime = (totalSeconds) => {
-            if (totalSeconds === '' || totalSeconds === undefined || totalSeconds === null) return { mm: '', ss: '' };
-            const m = Math.floor(totalSeconds / 60);
-            const s = totalSeconds % 60;
-            return { mm: m.toString(), ss: s.toString().padStart(2, '0') };
-        };
-
         const App = () => {
             const { status, data, saveData, user } = useFirebase();
             const { schedule, scores } = data;
@@ -331,22 +305,6 @@
                 const updatedScores = {
                     ...scores,
                     [key]: { ...currentMatchScore, [team]: value }
-                };
-                saveData({ scores: updatedScores });
-            };
-
-            const handleTimeCommit = (gameIdx, matchIdx, team, mm, ss) => {
-                const key = `${gameIdx}-${matchIdx}`;
-                const m = parseInt(mm) || 0;
-                const s = parseInt(ss) || 0;
-                const totalSeconds = (m * 60) + s;
-
-                const finalVal = (mm === '' && ss === '') ? '' : totalSeconds;
-
-                const currentMatchScore = scores[key] || { t1: '', t2: '' };
-                const updatedScores = {
-                    ...scores,
-                    [key]: { ...currentMatchScore, [team]: finalVal }
                 };
                 saveData({ scores: updatedScores });
             };
@@ -405,84 +363,42 @@
 
                 if (!schedule || !Array.isArray(schedule)) return [];
 
-                // Helper to collect ranked results
-                const rankedGameResults = {};
-
                 schedule.forEach((category, gIdx) => {
                     if(!category.matches) return;
-
-                    const isTimedGame = TIMED_GAMES.includes(category.gameType);
-
-                    if (isTimedGame) {
-                        rankedGameResults[category.gameType] = [];
-                    }
 
                     category.matches.forEach((match, mIdx) => {
                         const scoreKey = `${gIdx}-${mIdx}`;
                         const scoreData = scores[scoreKey];
 
-                        if (isTimedGame) {
-                             // --- SOLO / TIMED GAME LOGIC ---
-                             // Collect results first, rank later
-                             const t1 = getTeam(match.t1);
-                             if (t1 && scoreData && scoreData.t1 !== '') {
-                                 t1.played += 1;
-                                 rankedGameResults[category.gameType].push({
-                                     teamId: match.t1,
-                                     time: parseInt(scoreData.t1) || 0
-                                 });
-                             }
-                        } else {
-                            // --- NORMAL VS GAME LOGIC ---
-                            const t1 = getTeam(match.t1);
-                            const t2 = getTeam(match.t2);
+                        const t1 = getTeam(match.t1);
+                        const t2 = getTeam(match.t2);
 
-                            if (t1 && t2 && scoreData && scoreData.t1 !== '' && scoreData.t2 !== '') {
-                                const s1 = parseInt(scoreData.t1) || 0;
-                                const s2 = parseInt(scoreData.t2) || 0;
+                        if (t1 && t2 && scoreData && scoreData.t1 !== '' && scoreData.t2 !== '') {
+                            const s1 = parseInt(scoreData.t1) || 0;
+                            const s2 = parseInt(scoreData.t2) || 0;
 
-                                t1.played += 1;
-                                t2.played += 1;
+                            t1.played += 1;
+                            t2.played += 1;
 
-                                if (s1 > s2) {
-                                    t1.won += 1;
-                                    t1.points += 3;
-                                    t2.lost += 1;
-                                } else if (s2 > s1) {
-                                    t2.won += 1;
-                                    t2.points += 3;
-                                    t1.lost += 1;
-                                } else {
-                                    t1.draw += 1;
-                                    t1.points += 1;
-                                    t2.draw += 1;
-                                    t2.points += 1;
-                                }
+                            if (s1 > s2) {
+                                t1.won += 1;
+                                t1.points += 3;
+                                t2.lost += 1;
+                            } else if (s2 > s1) {
+                                t2.won += 1;
+                                t2.points += 3;
+                                t1.lost += 1;
+                            } else {
+                                t1.draw += 1;
+                                t1.points += 1;
+                                t2.draw += 1;
+                                t2.points += 1;
                             }
                         }
                     });
                 });
 
-                // Apply Ranking Points for Timed Games
-                Object.values(rankedGameResults).forEach(gameResults => {
-                    // Sort by lowest time
-                    gameResults.sort((a, b) => a.time - b.time);
-
-                    // Assign points based on rank
-                    gameResults.forEach((res, index) => {
-                        const team = getTeam(res.teamId);
-                        if (team) {
-                            if (index === 0) team.points += 5;      // 1st
-                            else if (index === 1) team.points += 4; // 2nd
-                            else if (index === 2) team.points += 3; // 3rd
-                            else if (index === 3) team.points += 2; // 4th
-                            else if (index === 4) team.points += 1; // 5th
-                        }
-                    });
-                });
-
                 return Object.values(teams).sort((a, b) => {
-                    // Sort primarily by points
                     return b.points - a.points;
                 });
             }, [schedule, scores]);
@@ -512,8 +428,6 @@
                         {/* Main Schedule */}
                         <div className="lg:col-span-2 space-y-8">
                             {schedule && schedule.map((category, gIdx) => {
-                                const isTimed = TIMED_GAMES.includes(category.gameType);
-
                                 // Colors
                                 let headerClass = "bg-indigo-50 text-indigo-700";
                                 let icon = "🎮";
@@ -535,112 +449,81 @@
                                                 </div>
                                                 <h3 className="text-2xl font-bold text-slate-800">{category.gameType}</h3>
                                             </div>
-                                            {isTimed && <span className="text-xs font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded">Time Trial</span>}
                                         </div>
 
-                                        <div className={`grid ${isTimed ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4' : 'grid-cols-1 md:grid-cols-2'} gap-4`}>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {category.matches.map((match, mIdx) => {
                                                 const scoreKey = `${gIdx}-${mIdx}`;
 
                                                 const valObj = localScores[scoreKey] || scores[scoreKey] || { t1: '', t2: '' };
-                                                const t1Time = isTimed ? secondsToTime(valObj.t1) : null;
 
                                                 return (
                                                     <div key={mIdx} className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col items-center relative group">
 
-                                                        {/* Remove Button for standard games ONLY */}
-                                                        {!isTimed && (
-                                                            <button
-                                                                onClick={() => removeMatch(gIdx, mIdx)}
-                                                                className="btn-remove absolute top-1 right-1 p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
-                                                                title="Remove Entry"
-                                                            >
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                                </svg>
-                                                            </button>
-                                                        )}
+                                                        {/* Remove Button */}
+                                                        <button
+                                                            onClick={() => removeMatch(gIdx, mIdx)}
+                                                            className="btn-remove absolute top-1 right-1 p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                                                            title="Remove Entry"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                            </svg>
+                                                        </button>
 
-                                                        {isTimed ? (
-                                                            // --- SOLO ENTRY CARD (FIXED GRID, NO SELECTION) ---
-                                                            <div className="flex flex-col items-center w-full">
-                                                                <div className="text-slate-500 font-bold text-sm mb-2">
-                                                                    TEAM {match.t1}
-                                                                </div>
-
-                                                                <div className="flex items-center space-x-1">
-                                                                    <input
-                                                                        type="number" placeholder="M"
-                                                                        className="input-time w-9 h-9 rounded-lg"
-                                                                        defaultValue={t1Time ? t1Time.mm : ''}
-                                                                        onBlur={(e) => handleTimeCommit(gIdx, mIdx, 't1', e.target.value, (e.target.nextSibling.value || 0))}
-                                                                    />
-                                                                    <span className="text-slate-400 font-bold">:</span>
-                                                                    <input
-                                                                        type="number" placeholder="S"
-                                                                        className="input-time w-9 h-9 rounded-lg"
-                                                                        defaultValue={t1Time ? t1Time.ss : ''}
-                                                                        onBlur={(e) => handleTimeCommit(gIdx, mIdx, 't1', (e.target.previousSibling.previousSibling.value || 0), e.target.value)}
-                                                                    />
-                                                                </div>
+                                                        {/* VS MATCH CARD */}
+                                                        <div className="flex items-center justify-center space-x-2 w-full pt-2">
+                                                            {/* Team 1 */}
+                                                            <div className="flex flex-col items-center w-28">
+                                                                <select
+                                                                    className="select-team w-full mb-2"
+                                                                    value={match.t1}
+                                                                    onChange={(e) => handleTeamChange(gIdx, mIdx, 't1', e.target.value)}
+                                                                >
+                                                                    <option value="">--</option>
+                                                                    {TEAM_OPTIONS.map(n => <option key={n} value={n}>Team {n}</option>)}
+                                                                </select>
+                                                                <input
+                                                                    type="number"
+                                                                    className="input-score w-16 h-12 text-2xl rounded-lg"
+                                                                    value={valObj.t1}
+                                                                    onChange={(e) => handleScoreChangeLocal(scoreKey, { ...valObj, t1: e.target.value })}
+                                                                    onBlur={(e) => commitScore(gIdx, mIdx, 't1', e.target.value)}
+                                                                />
                                                             </div>
-                                                        ) : (
-                                                            // --- VS MATCH CARD ---
-                                                            <div className="flex items-center justify-center space-x-2 w-full pt-2">
-                                                                {/* Team 1 */}
-                                                                <div className="flex flex-col items-center w-28">
-                                                                    <select
-                                                                        className="select-team w-full mb-2"
-                                                                        value={match.t1}
-                                                                        onChange={(e) => handleTeamChange(gIdx, mIdx, 't1', e.target.value)}
-                                                                    >
-                                                                        <option value="">--</option>
-                                                                        {TEAM_OPTIONS.map(n => <option key={n} value={n}>Team {n}</option>)}
-                                                                    </select>
-                                                                    <input
-                                                                        type="number"
-                                                                        className="input-score w-16 h-12 text-2xl rounded-lg"
-                                                                        value={valObj.t1}
-                                                                        onChange={(e) => handleScoreChangeLocal(scoreKey, { ...valObj, t1: e.target.value })}
-                                                                        onBlur={(e) => commitScore(gIdx, mIdx, 't1', e.target.value)}
-                                                                    />
-                                                                </div>
 
-                                                                <span className="text-slate-300 font-bold text-lg pt-6">vs</span>
+                                                            <span className="text-slate-300 font-bold text-lg pt-6">vs</span>
 
-                                                                {/* Team 2 */}
-                                                                <div className="flex flex-col items-center w-28">
-                                                                    <select
-                                                                        className="select-team w-full mb-2"
-                                                                        value={match.t2}
-                                                                        onChange={(e) => handleTeamChange(gIdx, mIdx, 't2', e.target.value)}
-                                                                    >
-                                                                        <option value="">--</option>
-                                                                        {TEAM_OPTIONS.map(n => <option key={n} value={n}>Team {n}</option>)}
-                                                                    </select>
-                                                                    <input
-                                                                        type="number"
-                                                                        className="input-score w-16 h-12 text-2xl rounded-lg"
-                                                                        value={valObj.t2}
-                                                                        onChange={(e) => handleScoreChangeLocal(scoreKey, { ...valObj, t2: e.target.value })}
-                                                                        onBlur={(e) => commitScore(gIdx, mIdx, 't2', e.target.value)}
-                                                                    />
-                                                                </div>
+                                                            {/* Team 2 */}
+                                                            <div className="flex flex-col items-center w-28">
+                                                                <select
+                                                                    className="select-team w-full mb-2"
+                                                                    value={match.t2}
+                                                                    onChange={(e) => handleTeamChange(gIdx, mIdx, 't2', e.target.value)}
+                                                                >
+                                                                    <option value="">--</option>
+                                                                    {TEAM_OPTIONS.map(n => <option key={n} value={n}>Team {n}</option>)}
+                                                                </select>
+                                                                <input
+                                                                    type="number"
+                                                                    className="input-score w-16 h-12 text-2xl rounded-lg"
+                                                                    value={valObj.t2}
+                                                                    onChange={(e) => handleScoreChangeLocal(scoreKey, { ...valObj, t2: e.target.value })}
+                                                                    onBlur={(e) => commitScore(gIdx, mIdx, 't2', e.target.value)}
+                                                                />
                                                             </div>
-                                                        )}
+                                                        </div>
                                                     </div>
                                                 );
                                             })}
 
-                                            {!isTimed && (
-                                                <button
-                                                    onClick={() => addMatch(gIdx)}
-                                                    className="btn-add rounded-xl flex flex-col items-center justify-center min-h-[120px] p-4"
-                                                >
-                                                    <span className="text-2xl font-bold mb-1">+</span>
-                                                    <span className="text-xs font-bold uppercase tracking-wider">Add</span>
-                                                </button>
-                                            )}
+                                            <button
+                                                onClick={() => addMatch(gIdx)}
+                                                className="btn-add rounded-xl flex flex-col items-center justify-center min-h-[120px] p-4"
+                                            >
+                                                <span className="text-2xl font-bold mb-1">+</span>
+                                                <span className="text-xs font-bold uppercase tracking-wider">Add</span>
+                                            </button>
                                         </div>
                                     </div>
                                 );
