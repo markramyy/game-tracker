@@ -382,17 +382,19 @@
 
                             if (s1 > s2) {
                                 t1.won += 1;
-                                t1.points += 3;
+                                t1.points += 3; // Winner: 3 pts
                                 t2.lost += 1;
+                                t2.points += 1; // Loser: 1 pt
                             } else if (s2 > s1) {
                                 t2.won += 1;
-                                t2.points += 3;
+                                t2.points += 3; // Winner: 3 pts
                                 t1.lost += 1;
+                                t1.points += 1; // Loser: 1 pt
                             } else {
                                 t1.draw += 1;
-                                t1.points += 1;
+                                t1.points += 2; // Tie: 2 pts
                                 t2.draw += 1;
-                                t2.points += 1;
+                                t2.points += 2; // Tie: 2 pts
                             }
                         }
                     });
